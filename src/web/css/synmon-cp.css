@@ -60,6 +60,17 @@
     margin-top: 4px;
 }
 
+/* Cron Builder – selected state */
+label:has(.cron-monthday:checked),
+label:has(.cron-weekday:checked) {
+    background: #dbeafe !important;
+    border-color: #3b82f6 !important;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+#cron-expression[readonly] { background: #f9fafb; cursor: default; }
+#cron-expression:not([readonly]) { background: #fff; }
+
 .synmon-suite-table th { font-weight: 600; }
 .synmon-suite-table .cron-badge {
     font-family: monospace;

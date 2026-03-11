@@ -28,12 +28,64 @@
                     value="{{ suite.description ?? '' }}"></div>
             </div>
             <div class="field">
-                <div class="heading"><label>Cron Expression</label>
-                    <div class="instructions"><p>z.B. <code>*/5 * * * *</code> = alle 5 Minuten</p></div>
+                <div class="heading"><label>Zeitplan</label></div>
+
+                {# Wochentage #}
+                <div style="margin-bottom:10px">
+                    <div style="font-size:12px;color:#666;margin-bottom:6px;font-weight:600">Wochentage</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        {% set days = ['Mo','Di','Mi','Do','Fr','Sa','So'] %}
+                        {% set cronDays = suite.cronExpression is defined ? suite.cronExpression : '' %}
+                        {% for i, day in days %}
+                            <label style="display:flex;align-items:center;gap:4px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">
+                                <input type="checkbox" class="cron-weekday" value="{{ i + 1 }}" style="margin:0">
+                                {{ day }}
+                            </label>
+                        {% endfor %}
+                        <label style="display:flex;align-items:center;gap:4px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">
+                            <input type="checkbox" id="cron-every-day" style="margin:0">
+                            Täglich
+                        </label>
+                    </div>
                 </div>
-                <div class="input"><input type="text" name="cronExpression" class="text fullwidth code"
-                    value="{{ suite.cronExpression ?? '*/5 * * * *' }}" placeholder="*/5 * * * *"></div>
+
+                {# Feste Monatstage #}
+                <div style="margin-bottom:10px">
+                    <div style="font-size:12px;color:#666;margin-bottom:6px;font-weight:600">Feste Tage im Monat <small style="font-weight:400">(optional, kombinierbar mit Wochentagen)</small></div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                        {% for d in 1..31 %}
+                            <label style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:12px">
+                                <input type="checkbox" class="cron-monthday" value="{{ d }}" style="display:none">
+                                {{ d }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {# Uhrzeiten #}
+                <div style="margin-bottom:10px">
+                    <div style="font-size:12px;color:#666;margin-bottom:6px;font-weight:600">Uhrzeiten</div>
+                    <div id="cron-times-list" style="display:flex;flex-direction:column;gap:6px">
+                        <div class="cron-time-entry" style="display:flex;gap:6px;align-items:center">
+                            <input type="time" class="cron-time text" value="08:00" style="width:120px">
+                            <button type="button" class="btn-remove-time btn small" style="padding:2px 8px">✕</button>
+                        </div>
+                    </div>
+                    <button type="button" id="btn-add-time" class="btn small" style="margin-top:8px">+ Uhrzeit hinzufügen</button>
+                </div>
+
+                {# Cron Preview #}
+                <div style="margin-bottom:4px">
+                    <div style="font-size:12px;color:#666;margin-bottom:4px;font-weight:600">Cron Expression (generiert)</div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <input type="text" name="cronExpression" id="cron-expression" class="text code fullwidth"
+                            value="{{ suite.cronExpression ?? '0 8 * * *' }}" placeholder="0 8 * * *">
+                        <button type="button" id="btn-cron-advanced" class="btn small" title="Manuell bearbeiten">✏️</button>
+                    </div>
+                    <div id="cron-preview-text" style="font-size:11px;color:#6b7280;margin-top:4px"></div>
+                </div>
             </div>
+
             <div class="field">
                 <div class="heading"><label>
                     <input type="checkbox" name="enabled" value="1" {{ (suite is null or suite.enabled) ? 'checked' : '' }}>

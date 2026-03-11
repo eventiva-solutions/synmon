@@ -36,10 +36,11 @@ class RunnerService extends Component
             return ['success' => false, 'error' => 'Node.js not available'];
         }
 
-        // Check Playwright
-        if (!$this->checkPlaywrightAvailable()) {
-            $this->failRun($runId, $suiteId, 'error', null, 'Playwright not installed. Run: npm install playwright && npx playwright install chromium');
-            return ['success' => false, 'error' => 'Playwright not available'];
+        // Auto-setup Playwright if needed (npm install + browser download)
+        $setupError = $this->ensurePlaywright();
+        if ($setupError !== null) {
+            $this->failRun($runId, $suiteId, 'error', null, $setupError);
+            return ['success' => false, 'error' => $setupError];
         }
 
         // Build payload and execute
@@ -105,9 +106,71 @@ class RunnerService extends Component
 
     public function checkPlaywrightAvailable(): bool
     {
-        $runnerJs = $this->getRunnerPath();
-        $nodeDir  = dirname($runnerJs) . '/node_modules/playwright';
-        return is_dir($nodeDir);
+        $nodeDir    = $this->getNodeDir();
+        $browserDir = $nodeDir . '/.playwright-browsers';
+
+        if (!is_dir($nodeDir . '/node_modules/playwright')) {
+            return false;
+        }
+
+        // Check that at least one chrome-headless-shell exists in our browser dir
+        $browserDir = $this->getBrowserDir();
+        $pattern    = $browserDir . '/chromium*/chrome-headless-shell-linux64/chrome-headless-shell';
+        $matches    = glob($pattern);
+        return !empty($matches);
+    }
+
+    /**
+     * Ensures npm packages and Playwright browser are installed.
+     * Browsers are stored inside the plugin directory (user-independent).
+     * Returns null on success, error string on failure.
+     */
+    public function ensurePlaywright(): ?string
+    {
+        if ($this->checkPlaywrightAvailable()) {
+            return null;
+        }
+
+        $nodeDir      = $this->getNodeDir();
+        $browserDir   = $this->getBrowserDir();
+        $settings     = SynMon::getInstance()->getResultService()->getSettings();
+        $nodeBinary   = $settings['nodeBinary'] ?? 'node';
+        $npmBinary    = dirname($nodeBinary) . '/npm';
+        if (!file_exists($npmBinary)) {
+            $npmBinary = 'npm';
+        }
+
+        Craft::info('SynMon: Installing npm packages...', __METHOD__);
+
+        // Step 1: npm install
+        if (!is_dir($nodeDir . '/node_modules/playwright')) {
+            $cmd    = 'cd ' . escapeshellarg($nodeDir) . ' && ' . escapeshellcmd($npmBinary) . ' install --prefix . 2>&1';
+            $output = [];
+            $code   = 0;
+            exec($cmd, $output, $code);
+
+            if ($code !== 0) {
+                return 'npm install failed: ' . implode("\n", array_slice($output, -5));
+            }
+        }
+
+        // Step 2: Install Chromium into plugin directory (not user home)
+        Craft::info('SynMon: Installing Playwright Chromium browser...', __METHOD__);
+
+        $playwrightBin = $nodeDir . '/node_modules/.bin/playwright';
+        $env           = 'PLAYWRIGHT_BROWSERS_PATH=' . escapeshellarg($browserDir);
+
+        $cmd    = 'cd ' . escapeshellarg($nodeDir) . ' && ' . $env . ' ' . escapeshellarg($playwrightBin) . ' install chromium 2>&1';
+        $output = [];
+        $code   = 0;
+        exec($cmd, $output, $code);
+
+        if ($code !== 0) {
+            return 'Playwright browser install failed: ' . implode("\n", array_slice($output, -5));
+        }
+
+        Craft::info('SynMon: Playwright ready.', __METHOD__);
+        return null;
     }
 
     public function buildPayload(array $suite, array $steps): array
@@ -145,13 +208,20 @@ class RunnerService extends Component
 
         $cmd = escapeshellcmd($nodeBinary) . ' ' . escapeshellarg($runnerPath);
 
+        $browserDir = $this->getBrowserDir();
+
+        $env = array_merge($_ENV, [
+            'PLAYWRIGHT_BROWSERS_PATH' => $browserDir,
+            'HOME'                     => $this->getNodeDir(),
+        ]);
+
         $descriptors = [
             0 => ['pipe', 'r'],  // stdin
             1 => ['pipe', 'w'],  // stdout
             2 => ['pipe', 'w'],  // stderr
         ];
 
-        $process = proc_open($cmd, $descriptors, $pipes);
+        $process = proc_open($cmd, $descriptors, $pipes, $this->getNodeDir(), $env);
 
         if (!is_resource($process)) {
             return ['success' => false, 'error' => 'Failed to start Node.js process'];
@@ -218,9 +288,19 @@ class RunnerService extends Component
         return $result;
     }
 
+    private function getNodeDir(): string
+    {
+        return dirname(__DIR__) . '/node';
+    }
+
+    private function getBrowserDir(): string
+    {
+        return Craft::$app->getPath()->getStoragePath() . '/synmon-playwright-browsers';
+    }
+
     private function getRunnerPath(): string
     {
-        return dirname(__DIR__) . '/node/runner.js';
+        return $this->getNodeDir() . '/runner.js';
     }
 
     private function failRun(int $runId, int $suiteId, string $status, ?int $failedStep, string $errorMessage): void

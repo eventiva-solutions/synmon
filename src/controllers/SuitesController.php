@@ -113,10 +113,14 @@ class SuitesController extends Controller
         ]));
 
         if (Craft::$app->getRequest()->getAcceptsJson()) {
-            return $this->asJson(['success' => true, 'message' => 'Suite in Queue eingereiht.']);
+            return $this->asJson([
+                'success'  => true,
+                'message'  => 'Suite in Queue eingereiht.',
+                'runsUrl'  => \craft\helpers\UrlHelper::cpUrl('synmon/runs'),
+            ]);
         }
 
-        Craft::$app->getSession()->setNotice('Suite wird ausgeführt...');
+        Craft::$app->getSession()->setNotice('Suite in Queue eingereiht.');
         return $this->redirect('synmon/runs');
     }
 
@@ -147,7 +151,7 @@ class SuitesController extends Controller
         $index     = (int)Craft::$app->getRequest()->getBodyParam('index', 0);
         $stepTypes = SynMon::getInstance()->getSuiteService()->getStepTypes();
 
-        $html = $this->renderTemplate('synmon/cp/suites/_step-row', [
+        $html = Craft::$app->getView()->renderTemplate('synmon/cp/suites/_step-row', [
             'step'      => ['type' => $type, 'selector' => '', 'value' => '', 'description' => '', 'timeout' => 30000],
             'index'     => $index,
             'stepTypes' => $stepTypes,
