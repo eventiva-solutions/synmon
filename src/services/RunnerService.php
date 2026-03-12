@@ -49,12 +49,16 @@ class RunnerService extends Component
         // Build payload and execute
         $payload = $this->buildPayload($suite, $steps, $liveMode, $runId);
 
-        if ($liveMode) {
-            $result = $this->executeLiveRunner($payload, $runId, $steps);
-        } else {
-            $result = $this->executeRunner($payload);
-            // Persist step logs
-            $this->saveStepLogs($runId, $steps, $result['steps'] ?? []);
+        try {
+            if ($liveMode) {
+                $result = $this->executeLiveRunner($payload, $runId, $steps);
+            } else {
+                $result = $this->executeRunner($payload);
+                $this->saveStepLogs($runId, $steps, $result['steps'] ?? []);
+            }
+        } catch (\Throwable $e) {
+            Craft::error('SynMon runner exception: ' . $e->getMessage(), __METHOD__);
+            $result = ['success' => false, 'error' => $e->getMessage(), 'steps' => []];
         }
 
         // Determine final status
@@ -429,6 +433,25 @@ class RunnerService extends Component
             return;
         }
 
+        // Console events: append to sidecar file
+        if (($data['type'] ?? '') === 'console') {
+            $consoleFile = $this->getScreenshotDir($runId) . '/console.json';
+            $dir = dirname($consoleFile);
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            $existing = file_exists($consoleFile)
+                ? (json_decode(file_get_contents($consoleFile), true) ?: [])
+                : [];
+            $existing[] = [
+                'level' => $data['level'] ?? 'log',
+                'text'  => $data['text'] ?? '',
+                't'     => $data['t'] ?? null,
+            ];
+            file_put_contents($consoleFile, json_encode($existing));
+            return;
+        }
+
         if (($data['type'] ?? '') !== 'step') return;
 
         $sortOrder    = $data['sortOrder'] ?? 0;
@@ -447,9 +470,20 @@ class RunnerService extends Component
 
         if ($exists) return;
 
+        // Validate stepId still exists (steps may have been re-saved with new IDs)
+        $stepId = $stepInfo['id'] ?? null;
+        if ($stepId !== null) {
+            $stepExists = \Craft::$app->getDb()->createCommand(
+                'SELECT id FROM {{%synmon_steps}} WHERE id = :id LIMIT 1'
+            )->bindValue(':id', $stepId)->queryScalar();
+            if (!$stepExists) {
+                $stepId = null;
+            }
+        }
+
         $log                 = new StepLogRecord();
         $log->runId          = $runId;
-        $log->stepId         = $stepInfo['id'] ?? null;
+        $log->stepId         = $stepId;
         $log->sortOrder      = $sortOrder;
         $log->type           = $data['type'] ?? ($stepInfo['type'] ?? 'unknown');  // 'step' type from NDJSON – use stepInfo
         $log->type           = $stepInfo['type'] ?? ($data['type'] ?? 'unknown');
@@ -470,12 +504,12 @@ class RunnerService extends Component
 
     private function getBrowserDir(): string
     {
-        return Craft::$app->getPath()->getStoragePath() . '/synmon-playwright-browsers';
+        return Craft::$app->getPath()->getStoragePath() . '/synmon/playwright';
     }
 
     private function getScreenshotDir(int $runId): string
     {
-        return Craft::$app->getPath()->getStoragePath() . '/synmon-screenshots/' . $runId;
+        return Craft::$app->getPath()->getStoragePath() . '/synmon/runs/' . $runId;
     }
 
     private function getRunnerPath(): string

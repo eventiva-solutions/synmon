@@ -47,7 +47,11 @@ async function main() {
         const consoleLogs = [];
 
         page.on('console', (msg) => {
-            consoleLogs.push('[' + msg.type() + '] ' + msg.text());
+            const line = '[' + msg.type() + '] ' + msg.text();
+            consoleLogs.push(line);
+            if (liveMode) {
+                outputLine({ type: 'console', level: msg.type(), text: msg.text(), t: Date.now() });
+            }
         });
 
         // Network logging: emit as NDJSON in live mode only
@@ -169,7 +173,7 @@ async function main() {
 async function runStep(page, step, timeout) {
     switch (step.type) {
         case 'navigate':
-            await page.goto(step.value, { waitUntil: 'networkidle', timeout });
+            await page.goto(step.value, { waitUntil: 'load', timeout });
             break;
 
         case 'click':

@@ -50,7 +50,7 @@ class RunsController extends Controller
         }
 
         // Attach screenshot URLs to step logs if screenshots exist
-        $screenshotBase    = Craft::$app->getPath()->getStoragePath() . '/synmon-screenshots/' . $id;
+        $screenshotBase    = Craft::$app->getPath()->getStoragePath() . '/synmon/runs/' . $id;
         $screenshotBaseUrl = \craft\helpers\UrlHelper::cpUrl('synmon/runs/screenshot');
         foreach ($run['stepLogs'] as &$log) {
             $file = $screenshotBase . '/step-' . $log['sortOrder'] . '.jpg';
@@ -79,9 +79,9 @@ class RunsController extends Controller
 
     private function deleteRunScreenshots(int $runId): void
     {
-        $dir = Craft::$app->getPath()->getStoragePath() . '/synmon-screenshots/' . $runId;
+        $dir = Craft::$app->getPath()->getStoragePath() . '/synmon/runs/' . $runId;
         if (is_dir($dir)) {
-            foreach (glob($dir . '/*.jpg') ?: [] as $file) {
+            foreach (glob($dir . '/*') ?: [] as $file) {
                 @unlink($file);
             }
             @rmdir($dir);
@@ -166,7 +166,7 @@ class RunsController extends Controller
         )->bindValue(':id', $id)->queryAll();
 
         $screenshotBaseUrl = \craft\helpers\UrlHelper::cpUrl('synmon/runs/screenshot');
-        $screenshotBase    = Craft::$app->getPath()->getStoragePath() . '/synmon-screenshots/' . $id;
+        $screenshotBase    = Craft::$app->getPath()->getStoragePath() . '/synmon/runs/' . $id;
         foreach ($stepLogs as &$log) {
             $file = $screenshotBase . '/step-' . $log['sortOrder'] . '.jpg';
             $log['screenshotUrl'] = file_exists($file)
@@ -177,7 +177,7 @@ class RunsController extends Controller
 
         // Network logs written by RunnerService to a sidecar file
         $networkFile = Craft::$app->getPath()->getStoragePath()
-            . '/synmon-screenshots/' . $id . '/network.json';
+            . '/synmon/runs/' . $id . '/network.json';
         $networkLogs = file_exists($networkFile)
             ? (json_decode(file_get_contents($networkFile), true) ?: [])
             : [];
@@ -200,7 +200,7 @@ class RunsController extends Controller
         $sortOrder = (int)Craft::$app->getRequest()->getRequiredQueryParam('sortOrder');
 
         $filePath = Craft::$app->getPath()->getStoragePath()
-            . '/synmon-screenshots/' . $runId . '/step-' . $sortOrder . '.jpg';
+            . '/synmon/runs/' . $runId . '/step-' . $sortOrder . '.jpg';
 
         if (!file_exists($filePath)) {
             throw new \yii\web\NotFoundHttpException('Screenshot not found.');

@@ -16,9 +16,10 @@
 {% if nodeAvailable and not pwAvailable %}
 <div class="synmon-playwright-setup">
     <strong>⚠ Playwright nicht installiert!</strong>
-    Führe folgende Befehle aus:
+    Playwright wird beim ersten Test-Run automatisch installiert. Starte einfach einen Test – die Installation läuft im Hintergrund.<br>
+    Falls die automatische Installation fehlschlägt, führe folgende Befehle manuell aus:
     <code>cd {{ craft.app.path.basePath }}/plugins/synmon/src/node
-npm install playwright
+npm install
 npx playwright install chromium</code>
 </div>
 {% endif %}
