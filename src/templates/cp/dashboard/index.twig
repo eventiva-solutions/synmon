@@ -4,11 +4,16 @@
 {% do view.registerAssetBundle('eventiva\\synmon\\assetbundles\\SynMonAssetBundle') %}
 
 {% set title = 'SynMon Dashboard' %}
-
 {% set selectedSubnavItem = 'dashboard' %}
 {% set crumbs = [{ label: 'SynMon', url: cpUrl('synmon') }] %}
 
 {% block content %}
+
+{# Import Form (hidden, triggered by JS) #}
+<form id="synmon-import-form" method="post" action="{{ cpUrl('synmon/suites/import') }}" enctype="multipart/form-data" style="display:none">
+    {{ csrfInput() }}
+    <input type="file" id="synmon-import-file" name="importFile" accept=".json">
+</form>
 
 <div class="synmon-stats-grid">
     <div class="synmon-stat-card">
@@ -33,31 +38,52 @@
     </div>
 </div>
 
-<h2>Suite Status</h2>
+<div style="display:flex;align-items:center;justify-content:space-between;margin:24px 0 8px">
+    <h2 style="margin:0">Test Suites</h2>
+    <div style="display:flex;gap:8px">
+        <button type="button" class="btn small" id="btn-import-suite">⬆ Import JSON</button>
+        <a href="{{ cpUrl('synmon/suites/new') }}" class="btn small submit">+ Neue Suite</a>
+    </div>
+</div>
+
+{% if suites|length == 0 %}
+<div style="text-align:center;padding:40px 0;color:#999">
+    <p style="font-size:28px">🔬</p>
+    <p>Noch keine Test-Suites vorhanden.</p>
+    <a href="{{ cpUrl('synmon/suites/new') }}" class="btn submit">Erste Suite erstellen</a>
+</div>
+{% else %}
 <table class="data fullwidth synmon-suite-table">
     <thead>
         <tr>
-            <th>Suite</th>
+            <th>Name</th>
             <th>Cron</th>
             <th>Status</th>
+            <th>Aktiv</th>
             <th>Letzter Run</th>
             <th>Nächster Run</th>
-            <th>Aktionen</th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
-        {% for suite in stats.suiteStatuses %}
+        {% for suite in suites %}
         <tr>
-            <td><a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}">{{ suite.name }}</a></td>
+            <td>
+                <a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}">{{ suite.name }}</a>
+                <span style="font-size:10px;color:#aaa;margin-left:6px">#{{ suite.id }}</span>
+                {% if suite.description %}<br><small style="color:#999">{{ suite.description }}</small>{% endif %}
+            </td>
             <td><span class="cron-badge">{{ suite.cronExpression }}</span></td>
             <td>
                 {% if suite.lastRunStatus %}
-                    <span class="synmon-status-badge synmon-status-{{ suite.lastRunStatus }}">
-                        {{ suite.lastRunStatus }}
-                    </span>
+                    <span class="synmon-status-badge synmon-status-{{ suite.lastRunStatus }}">{{ suite.lastRunStatus }}</span>
                 {% else %}
-                    <span class="synmon-status-badge synmon-status-skip">—</span>
+                    <span style="color:#aaa">—</span>
                 {% endif %}
+            </td>
+            <td>
+                <input type="checkbox" class="suite-toggle" data-suite-id="{{ suite.id }}"
+                    {{ suite.enabled ? 'checked' : '' }}>
             </td>
             <td>{{ suite.lastRunAt ? suite.lastRunAt|date('d.m.Y H:i') : '—' }}</td>
             <td>
@@ -67,17 +93,26 @@
                     <span style="color:#aaa;font-size:12px">{{ suite.enabled ? '—' : 'deaktiviert' }}</span>
                 {% endif %}
             </td>
-            <td>
-                <button class="btn small btn-run-suite" data-suite-id="{{ suite.id }}">▶ Starten</button>
+            <td style="text-align:right;white-space:nowrap">
+                <button class="btn small btn-run-suite" data-suite-id="{{ suite.id }}" title="Im Hintergrund starten">▶ Starten</button>
                 <a href="{{ cpUrl('synmon/suites/' ~ suite.id ~ '/live') }}" class="btn small">🎬 Live</a>
                 <a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}" class="btn small">Bearbeiten</a>
+                <a href="{{ cpUrl('synmon/suites/' ~ suite.id ~ '/export') }}" class="btn small" title="Als JSON exportieren">⬇ Export</a>
+                <form method="post" style="display:inline" onsubmit="return confirm('Suite klonen?')">
+                    {{ csrfInput() }}
+                    <button type="submit" formaction="{{ cpUrl('synmon/suites/' ~ suite.id ~ '/clone') }}" class="btn small">⎘ Klonen</button>
+                </form>
+                <form method="post" style="display:inline" onsubmit="return confirm('Suite löschen?')">
+                    {{ csrfInput() }}
+                    <input type="hidden" name="suiteId" value="{{ suite.id }}">
+                    <button type="submit" formaction="{{ cpUrl('synmon/suites/delete') }}" class="btn small">✕</button>
+                </form>
             </td>
         </tr>
-        {% else %}
-        <tr><td colspan="5" style="text-align:center;color:#999">Keine Suites vorhanden. <a href="{{ cpUrl('synmon/suites/new') }}">Jetzt erstellen</a></td></tr>
         {% endfor %}
     </tbody>
 </table>
+{% endif %}
 
 {% if stats.recentRuns|length %}
 <h2 style="margin-top:32px">Letzte Runs</h2>
@@ -106,5 +141,16 @@
     </tbody>
 </table>
 {% endif %}
+
+{% js %}
+document.getElementById('btn-import-suite').addEventListener('click', function () {
+    document.getElementById('synmon-import-file').click();
+});
+document.getElementById('synmon-import-file').addEventListener('change', function () {
+    if (this.files.length > 0) {
+        document.getElementById('synmon-import-form').submit();
+    }
+});
+{% endjs %}
 
 {% endblock %}

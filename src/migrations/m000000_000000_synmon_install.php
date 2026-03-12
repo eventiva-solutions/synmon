@@ -35,10 +35,7 @@ class m000000_000000_synmon_install extends Migration
                 'uid'         => $this->uid()->notNull(),
                 'suiteId'     => $this->integer()->notNull(),
                 'sortOrder'   => $this->integer()->notNull()->defaultValue(0),
-                'type'        => $this->enum('type', [
-                    'navigate', 'click', 'fill', 'select', 'pressKey',
-                    'assertVisible', 'assertText', 'assertUrl', 'assertTitle', 'waitForSelector'
-                ])->notNull(),
+                'type'        => $this->string(50)->notNull(),
                 'selector'    => $this->string(500)->null(),
                 'value'       => $this->string(1000)->null(),
                 'description' => $this->string(500)->null(),

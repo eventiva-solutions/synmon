@@ -144,19 +144,23 @@ class SuitesController extends Controller
 
         $steps = $request->getBodyParam('steps', []);
 
-        if ($id) {
-            $success = SynMon::getInstance()->getSuiteService()->updateSuite((int)$id, $data);
-            $suiteId = (int)$id;
-        } else {
-            $suiteId = SynMon::getInstance()->getSuiteService()->createSuite($data);
-            $success = $suiteId !== false;
-        }
+        try {
+            if ($id) {
+                $success = SynMon::getInstance()->getSuiteService()->updateSuite((int)$id, $data);
+                $suiteId = (int)$id;
+            } else {
+                $suiteId = SynMon::getInstance()->getSuiteService()->createSuite($data);
+                $success = $suiteId !== false;
+            }
 
-        if (!$success) {
-            return $this->asJson(['success' => false, 'error' => 'Fehler beim Speichern.']);
-        }
+            if (!$success) {
+                return $this->asJson(['success' => false, 'error' => 'Fehler beim Speichern.']);
+            }
 
-        SynMon::getInstance()->getSuiteService()->saveSteps((int)$suiteId, is_array($steps) ? $steps : []);
+            SynMon::getInstance()->getSuiteService()->saveSteps((int)$suiteId, is_array($steps) ? $steps : []);
+        } catch (\Throwable $e) {
+            return $this->asJson(['success' => false, 'error' => $e->getMessage()]);
+        }
 
         return $this->asJson(['success' => true, 'suiteId' => $suiteId]);
     }
@@ -215,7 +219,15 @@ class SuitesController extends Controller
         $runRecord->suiteId = $id;
         $runRecord->status  = 'running';
         $runRecord->trigger = 'manual';
-        $runRecord->save();
+
+        try {
+            if (!$runRecord->save()) {
+                $errors = $runRecord->getErrors();
+                return $this->asJson(['success' => false, 'error' => 'Run konnte nicht erstellt werden: ' . json_encode($errors)]);
+            }
+        } catch (\Throwable $e) {
+            return $this->asJson(['success' => false, 'error' => $e->getMessage()]);
+        }
 
         $runId = $runRecord->id;
 

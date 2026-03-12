@@ -24,9 +24,10 @@ class DashboardController extends Controller
         $stats     = SynMon::getInstance()->getResultService()->getDashboardStats();
         $settings  = SynMon::getInstance()->getResultService()->getSettings();
         $scheduler = SynMon::getInstance()->getSchedulerService();
+        $suites    = SynMon::getInstance()->getSuiteService()->getSuites();
 
         $nextRuns = [];
-        foreach ($stats['suiteStatuses'] as $suite) {
+        foreach ($suites as $suite) {
             if ($suite['enabled']) {
                 $next = $scheduler->getNextRunTime($suite['cronExpression']);
                 $nextRuns[$suite['id']] = $next ? $next->format('d.m.Y H:i') : null;
@@ -37,6 +38,7 @@ class DashboardController extends Controller
             'title'    => 'SynMon Dashboard',
             'stats'    => $stats,
             'settings' => $settings,
+            'suites'   => $suites,
             'nextRuns' => $nextRuns,
         ]);
     }

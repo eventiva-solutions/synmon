@@ -197,10 +197,14 @@ async function runStep(page, step, timeout) {
             break;
 
         case 'assertText': {
+            // Wait for page to settle after possible navigation (e.g. form submit)
+            try { await page.waitForLoadState('load', { timeout: Math.min(timeout, 10000) }); } catch (_) {}
+
             // Poll every 250ms, piercing shadow DOM so custom elements / web components work
             const deadline = Date.now() + timeout;
             let found = false;
             while (Date.now() < deadline) {
+                try {
                 found = await page.evaluate(([sel, txt]) => {
                     function searchInRoot(root) {
                         const elements = root.querySelectorAll(sel);
@@ -322,6 +326,14 @@ async function runStep(page, step, timeout) {
             }
             break;
         }
+
+        case 'check':
+            await page.check(step.selector, { timeout, force: true });
+            break;
+
+        case 'uncheck':
+            await page.uncheck(step.selector, { timeout, force: true });
+            break;
 
         default:
             throw new Error(`Unknown step type: ${step.type}`);

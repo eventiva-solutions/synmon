@@ -70,7 +70,6 @@ class SynMon extends Plugin
 
         $item['subnav'] = [
             'dashboard' => ['label' => Craft::t('synmon', 'Dashboard'),    'url' => 'synmon'],
-            'suites'    => ['label' => Craft::t('synmon', 'Test Suites'),  'url' => 'synmon/suites'],
             'runs'      => ['label' => Craft::t('synmon', 'Run History'),  'url' => 'synmon/runs'],
             'settings'  => ['label' => Craft::t('synmon', 'Einstellungen'),'url' => 'synmon/settings'],
         ];
@@ -166,6 +165,18 @@ class SynMon extends Plugin
                 Craft::info('SynMon: Added screenshotPath column.', __METHOD__);
             } catch (\Throwable $e) {
                 // Column already exists – expected on subsequent loads
+            }
+        }
+
+        // Migrate synmon_steps.type from ENUM to VARCHAR(50) to support new step types
+        if ($db->tableExists('{{%synmon_steps}}')) {
+            try {
+                $db->createCommand(
+                    'ALTER TABLE {{%synmon_steps}} MODIFY COLUMN `type` VARCHAR(50) NOT NULL'
+                )->execute();
+                Craft::info('SynMon: Migrated steps.type to VARCHAR.', __METHOD__);
+            } catch (\Throwable $e) {
+                // Already VARCHAR or other benign error
             }
         }
     }
