@@ -23,11 +23,14 @@
     padding: 12px;
     margin-bottom: 8px;
     display: grid;
-    grid-template-columns: 24px auto 1fr 1fr auto auto auto;
+    grid-template-columns: 24px auto 1fr 1fr auto auto auto auto;
     gap: 10px;
     align-items: center;
 }
 .synmon-step-row:hover { border-color: #b0b0b0; }
+
+.synmon-step-hint { margin-top: -4px; margin-bottom: 8px; }
+.btn-step-help.active { background: #dbeafe !important; border-color: #3b82f6 !important; color: #1d4ed8 !important; }
 
 .synmon-drag-handle {
     cursor: grab;
@@ -96,6 +99,37 @@ label:has(.cron-weekday:checked) {
     color: #dc3545;
     margin-top: 4px;
 }
+
+/* Clickable step log rows (when screenshots available) */
+.synmon-step-log-row[data-screenshot]:hover {
+    border-left-width: 4px;
+    padding-left: 11px;
+    transition: border-left-width 0.1s, padding-left 0.1s;
+}
+.synmon-step-log-row[data-screenshot].pass:hover  { border-left-color: #16a34a; }
+.synmon-step-log-row[data-screenshot].fail:hover  { border-left-color: #b91c1c; }
+
+#synmon-screenshot-viewer img { transition: opacity 0.2s; }
+
+/* ── Live Test View ──────────────────────────────────────────────────── */
+#synmon-live-wrap {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.synmon-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255,255,255,.2);
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: synmon-spin .7s linear infinite;
+}
+@keyframes synmon-spin { to { transform: rotate(360deg); } }
+
+/* Live timeline step rows */
+#live-timeline-steps > div { border-left: 2px solid #334155; padding-left: 8px; }
 
 .synmon-playwright-setup {
     background: #fff3cd;

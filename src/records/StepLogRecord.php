@@ -16,6 +16,7 @@ use craft\db\ActiveRecord;
  * @property int    $durationMs
  * @property string $errorMessage
  * @property string $consoleOutput
+ * @property string $screenshotPath
  * @property string $dateCreated
  * @property string $dateUpdated
  */

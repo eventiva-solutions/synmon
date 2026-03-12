@@ -1,0 +1,458 @@
+{% extends '_layouts/cp' %}
+{% do view.registerAssetBundle('eventiva\\synmon\\assetbundles\\SynMonAssetBundle') %}
+{% js %}window.synmonStepTypes = {{ stepTypes|json_encode|raw }};{% endjs %}
+{% js 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js' %}
+
+{% set selectedSubnavItem = 'suites' %}
+{% set crumbs = [
+    { label: 'SynMon', url: cpUrl('synmon') },
+    { label: 'Test Suites', url: cpUrl('synmon/suites') },
+    { label: suite.name, url: cpUrl('synmon/suites/' ~ suite.id) },
+] %}
+
+{% block content %}
+<div id="synmon-live-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:0;height:calc(100vh - 120px);min-height:500px;margin-top:-8px">
+
+    {# ── Left: Step Editor ──────────────────────────────────────────── #}
+    <div style="overflow-y:auto;padding:20px;border-right:1px solid #e5e7eb">
+        <h2 style="margin-top:0">Test Steps</h2>
+
+        <form id="live-suite-form">
+            {{ csrfInput() }}
+            <input type="hidden" name="suiteId" value="{{ suite.id }}">
+            <input type="hidden" name="name" value="{{ suite.name }}">
+            <input type="hidden" name="cronExpression" value="{{ suite.cronExpression ?? '0 8 * * *' }}">
+            <input type="hidden" name="enabled" value="1">
+
+            <div id="step-list">
+                {% for i, step in steps %}
+                    {% include 'synmon/cp/suites/_step-row' with { step: step, index: i, stepTypes: stepTypes } %}
+                {% endfor %}
+            </div>
+
+            <div style="display:flex;gap:10px;margin:12px 0;align-items:center">
+                <select id="new-step-type" class="select">
+                    {% for typeKey, typeConfig in stepTypes %}
+                        <option value="{{ typeKey }}">{{ typeConfig.label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" id="btn-add-step" class="btn small">+ Step hinzufügen</button>
+            </div>
+        </form>
+
+        <hr style="margin:16px 0">
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button id="btn-live-run" class="btn submit" data-suite-id="{{ suite.id }}">
+                ▶ Speichern &amp; Live testen
+            </button>
+            <button id="btn-live-cancel" class="btn" style="display:none;background:#dc2626;color:#fff;border-color:#dc2626">
+                ✕ Abbrechen
+            </button>
+            <a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}" class="btn">← Zurück zum Editor</a>
+        </div>
+
+        {# Status message #}
+        <div id="live-status-msg" style="margin-top:12px;font-size:13px;color:#6b7280"></div>
+    </div>
+
+    {# ── Right: Live Preview ────────────────────────────────────────── #}
+    <div style="display:flex;flex-direction:column;background:#0f172a;overflow:hidden">
+
+        {# Browser header bar #}
+        <div style="background:#1e293b;padding:8px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #334155">
+            <div style="display:flex;gap:6px">
+                <span style="width:12px;height:12px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+                <span style="width:12px;height:12px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+                <span style="width:12px;height:12px;border-radius:50%;background:#22c55e;display:inline-block"></span>
+            </div>
+            <div id="live-url-bar" style="flex:1;background:#0f172a;border-radius:4px;padding:4px 12px;font-size:12px;font-family:monospace;color:#94a3b8">
+                — bereit —
+            </div>
+            <div id="live-run-badge" style="font-size:11px;color:#64748b"></div>
+        </div>
+
+        {# Step label bar #}
+        <div style="background:#0f172a;padding:4px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1e293b;min-height:28px">
+            <span id="live-step-label" style="font-size:11px;color:#475569;font-family:monospace"></span>
+            <span style="font-size:10px;color:#334155">Klick auf Step im Protokoll → Screenshot wechseln</span>
+        </div>
+
+        {# Screenshot area #}
+        <div id="live-screenshot-wrap" style="flex:1;overflow:hidden;position:relative;background:#1e293b;display:flex;align-items:center;justify-content:center">
+            <div id="live-screenshot-placeholder" style="text-align:center;color:#475569">
+                <div style="font-size:48px;margin-bottom:12px">🖥️</div>
+                <div style="font-size:13px">Browser-Vorschau erscheint hier während des Tests</div>
+            </div>
+            <img id="live-screenshot-img" src="" alt="Screenshot"
+                style="display:none;max-width:100%;max-height:100%;object-fit:contain;width:100%;height:100%">
+            <div id="live-screenshot-spinner" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(15,23,42,.6)">
+                <div class="synmon-spinner"></div>
+            </div>
+        </div>
+
+        {# Step timeline + Network console #}
+        <div style="background:#1e293b;border-top:1px solid #334155;height:38%;min-height:180px;max-height:480px;display:flex;flex-direction:column;flex-shrink:0">
+            {# Tab bar #}
+            <div style="display:flex;border-bottom:1px solid #334155;flex-shrink:0">
+                <button id="tab-protocol" onclick="synmonTab('protocol')"
+                    style="padding:6px 16px;font-size:11px;font-weight:600;color:#e2e8f0;background:#1e293b;border:none;border-bottom:2px solid #3b82f6;cursor:pointer;text-transform:uppercase;letter-spacing:.5px">
+                    Protokoll
+                </button>
+                <button id="tab-network" onclick="synmonTab('network')"
+                    style="padding:6px 16px;font-size:11px;font-weight:600;color:#64748b;background:#1e293b;border:none;border-bottom:2px solid transparent;cursor:pointer;text-transform:uppercase;letter-spacing:.5px">
+                    Netzwerk <span id="net-count" style="background:#334155;border-radius:10px;padding:1px 6px;font-size:10px">0</span>
+                </button>
+            </div>
+
+            {# Protocol panel #}
+            <div id="panel-protocol" style="flex:1;overflow-y:auto;padding:10px 14px">
+                <div id="live-timeline-steps" style="display:flex;flex-direction:column;gap:4px">
+                    <div style="font-size:12px;color:#475569;font-style:italic">Noch kein Test gestartet.</div>
+                </div>
+            </div>
+
+            {# Network panel #}
+            <div id="panel-network" style="flex:1;overflow-y:auto;padding:0;display:none">
+                <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:monospace">
+                    <thead style="position:sticky;top:0;background:#0f172a">
+                        <tr>
+                            <th style="padding:5px 10px;text-align:left;color:#64748b;font-weight:600;width:60px">Method</th>
+                            <th style="padding:5px 10px;text-align:left;color:#64748b;font-weight:600;width:48px">Status</th>
+                            <th style="padding:5px 10px;text-align:left;color:#64748b;font-weight:600">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="network-log-body">
+                        <tr><td colspan="3" style="padding:10px;color:#475569;font-style:italic;font-family:sans-serif">Keine Requests.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// Tab switcher (global so onclick="" works)
+function synmonTab(tab) {
+    document.getElementById('panel-protocol').style.display = tab === 'protocol' ? '' : 'none';
+    document.getElementById('panel-network').style.display  = tab === 'network'  ? '' : 'none';
+    document.getElementById('tab-protocol').style.borderBottomColor = tab === 'protocol' ? '#3b82f6' : 'transparent';
+    document.getElementById('tab-network').style.borderBottomColor  = tab === 'network'  ? '#3b82f6' : 'transparent';
+    document.getElementById('tab-protocol').style.color = tab === 'protocol' ? '#e2e8f0' : '#64748b';
+    document.getElementById('tab-network').style.color  = tab === 'network'  ? '#e2e8f0' : '#64748b';
+}
+
+(function () {
+    var suiteId       = {{ suite.id }};
+    var csrfToken     = (window.Craft && Craft.csrfTokenValue) || '';
+    var saveAjaxUrl   = {{ cpUrl('synmon/suites/save-ajax')|json_encode|raw }};
+    var runLiveUrl    = {{ cpUrl('synmon/suites/run-live')|json_encode|raw }};
+    var liveStatusBase = {{ cpUrl('synmon/runs')|json_encode|raw }};
+    var pollInterval   = null;
+    var currentRunId   = null;
+    var screenshotIdx  = null;  // currently displayed sortOrder
+    var manualSelect   = false; // true when user clicked a step manually
+    var allStepLogs    = [];    // latest snapshot from poll
+    var networkEntries = [];    // {kind, method, status, url}
+
+    var cancelUrl  = {{ cpUrl('synmon/runs/cancel')|json_encode|raw }};
+
+    var $btn       = document.getElementById('btn-live-run');
+    var $cancelBtn = document.getElementById('btn-live-cancel');
+    var $statusMsg = document.getElementById('live-status-msg');
+    var $urlBar    = document.getElementById('live-url-bar');
+    var $badge     = document.getElementById('live-run-badge');
+    var $timeline       = document.getElementById('live-timeline-steps');
+    var $imgPlaceholder = document.getElementById('live-screenshot-placeholder');
+    var $img            = document.getElementById('live-screenshot-img');
+
+    function setStatus(msg, color) {
+        $statusMsg.textContent = msg;
+        $statusMsg.style.color = color || '#6b7280';
+    }
+
+    function showScreenshot(url, sortOrder, force) {
+        if (!url) return;
+        if (!force && screenshotIdx === sortOrder) return;
+        screenshotIdx = sortOrder;
+        $img.style.display = 'block';
+        $imgPlaceholder.style.display = 'none';
+        $img.src = url + '&_=' + Date.now();
+        // Highlight selected step in timeline
+        document.querySelectorAll('#live-timeline-steps .synmon-tl-step').forEach(function (el) {
+            el.style.outline = parseInt(el.dataset.sortOrder) === sortOrder
+                ? '2px solid #3b82f6'
+                : 'none';
+            el.style.borderRadius = '4px';
+        });
+        // Update step label above screenshot
+        var labelEl = document.getElementById('live-step-label');
+        if (labelEl) labelEl.textContent = 'Step ' + (parseInt(sortOrder) + 1);
+    }
+
+    function selectStep(log) {
+        manualSelect = true;
+        if (log.screenshotUrl) {
+            showScreenshot(log.screenshotUrl, log.sortOrder, true);
+        }
+        // Update URL bar to the last navigate step up to this step
+        for (var i = allStepLogs.length - 1; i >= 0; i--) {
+            if (allStepLogs[i].sortOrder <= log.sortOrder && allStepLogs[i].type === 'navigate' && allStepLogs[i].value) {
+                $urlBar.textContent = allStepLogs[i].value;
+                break;
+            }
+        }
+    }
+
+    function renderTimeline(stepLogs, totalSteps) {
+        allStepLogs = stepLogs;
+        $timeline.innerHTML = '';
+        if (!stepLogs || stepLogs.length === 0) {
+            $timeline.innerHTML = '<div style="font-size:12px;color:#475569;font-style:italic">Warte auf ersten Step...</div>';
+            return;
+        }
+        stepLogs.forEach(function (log) {
+            var icon     = log.status === 'pass' ? '✅' : log.status === 'fail' ? '❌' : '⏭️';
+            var color    = log.status === 'pass' ? '#22c55e' : log.status === 'fail' ? '#ef4444' : '#94a3b8';
+            var dur      = log.durationMs ? ' <span style="color:#64748b">(' + log.durationMs + 'ms)</span>' : '';
+            var desc     = [log.type, log.selector, log.value].filter(Boolean).join(' › ');
+            var err      = log.errorMessage ? '<div style="color:#f87171;font-size:11px;margin-left:20px;padding-bottom:4px">' + escHtml(log.errorMessage) + '</div>' : '';
+            var hasShot  = !!log.screenshotUrl;
+            var cursor   = hasShot ? 'pointer' : 'default';
+            var shotHint = hasShot ? ' <span style="color:#3b82f6;font-size:10px">📷</span>' : '';
+            var isActive = screenshotIdx === log.sortOrder;
+            var outline  = isActive ? 'outline:2px solid #3b82f6;border-radius:4px;' : '';
+
+            var el = document.createElement('div');
+            el.className = 'synmon-tl-step';
+            el.dataset.sortOrder = log.sortOrder;
+            el.style.cssText = 'cursor:' + cursor + ';padding:4px 6px;' + outline;
+            el.innerHTML = '<div style="font-size:12px;color:' + color + '">'
+                + icon + ' <strong>Step ' + (parseInt(log.sortOrder) + 1) + '</strong> '
+                + '<span style="color:#94a3b8">' + escHtml(desc) + '</span>'
+                + dur + shotHint
+                + '</div>' + err;
+
+            if (hasShot) {
+                el.addEventListener('click', (function (l) {
+                    return function () { selectStep(l); };
+                })(log));
+            }
+            $timeline.appendChild(el);
+        });
+
+        // Pending steps
+        if (stepLogs.length < totalSteps) {
+            var pending = document.createElement('div');
+            pending.style.cssText = 'font-size:12px;color:#475569;padding:4px 6px';
+            pending.textContent = '⏳ ' + (totalSteps - stepLogs.length) + ' Step(s) ausstehend...';
+            $timeline.appendChild(pending);
+        }
+
+        // Auto-scroll only if user hasn't manually selected a step
+        if (!manualSelect) {
+            var wrap = document.getElementById('live-timeline');
+            wrap.scrollTop = wrap.scrollHeight;
+        }
+    }
+
+    function escHtml(s) {
+        return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function renderNetworkLog(entries) {
+        var tbody = document.getElementById('network-log-body');
+        if (!entries || entries.length === 0) return;
+        tbody.innerHTML = '';
+        // Group request+response by URL
+        var map = {};
+        entries.forEach(function (e) {
+            var key = (e.method || 'GET') + ':' + e.url;
+            if (!map[key]) map[key] = { method: e.method || '—', url: e.url, status: null };
+            if (e.kind === 'response') map[key].status = e.status;
+        });
+        Object.values(map).forEach(function (row) {
+            var tr = document.createElement('tr');
+            var statusColor = !row.status ? '#64748b' : row.status < 300 ? '#22c55e' : row.status < 400 ? '#f59e0b' : '#ef4444';
+            var shortUrl = row.url.length > 80 ? '…' + row.url.slice(-78) : row.url;
+            tr.style.cssText = 'border-bottom:1px solid #1e293b';
+            tr.innerHTML = '<td style="padding:4px 10px;color:#60a5fa">' + escHtml(row.method || '—') + '</td>'
+                + '<td style="padding:4px 10px;color:' + statusColor + '">' + (row.status || '⏳') + '</td>'
+                + '<td style="padding:4px 10px;color:#94a3b8;word-break:break-all" title="' + escHtml(row.url) + '">' + escHtml(shortUrl) + '</td>';
+            tbody.appendChild(tr);
+        });
+        document.getElementById('net-count').textContent = Object.keys(map).length;
+    }
+
+    function poll(runId) {
+        var url = liveStatusBase + '/' + runId + '/live-status';
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) return;
+
+                var logs       = data.stepLogs || [];
+                var totalSteps = document.querySelectorAll('#step-list .synmon-step-row').length;
+
+                renderTimeline(logs, totalSteps);
+
+                // Network log
+                if (data.networkLogs && data.networkLogs.length) {
+                    networkEntries = data.networkLogs;
+                    renderNetworkLog(networkEntries);
+                }
+
+                // Auto-show latest screenshot only if user hasn't manually selected
+                if (!manualSelect) {
+                    for (var i = logs.length - 1; i >= 0; i--) {
+                        if (logs[i].screenshotUrl) {
+                            showScreenshot(logs[i].screenshotUrl, logs[i].sortOrder);
+                            break;
+                        }
+                    }
+                }
+                // Always update URL bar from latest navigate step
+                for (var j = logs.length - 1; j >= 0; j--) {
+                    if (logs[j].type === 'navigate' && logs[j].value) {
+                        $urlBar.textContent = logs[j].value;
+                        break;
+                    }
+                }
+
+                if (data.status !== 'running') {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    $cancelBtn.style.display = 'none';
+                    var icons  = { pass: '✅', fail: '❌', error: '⚠️', cancelled: '🛑' };
+                    var colors = { pass: '#16a34a', fail: '#dc2626', error: '#d97706', cancelled: '#6b7280' };
+                    var icon  = icons[data.status]  || '❌';
+                    var color = colors[data.status] || '#dc2626';
+                    setStatus(icon + ' Test beendet – Status: ' + data.status.toUpperCase(), color);
+                    $btn.disabled = false;
+                    $btn.textContent = '▶ Speichern & Live testen';
+                    $badge.textContent = 'Run #' + runId + ' · ' + data.status;
+                    $badge.style.color = color;
+                }
+            })
+            .catch(function (e) {
+                console.error('Poll error:', e);
+            });
+    }
+
+    $cancelBtn.addEventListener('click', function () {
+        if (!currentRunId) return;
+        $cancelBtn.disabled = true;
+        $cancelBtn.textContent = '…';
+        var fd = new FormData();
+        fd.append('runId', currentRunId);
+        fd.append('CRAFT_CSRF_TOKEN', csrfToken);
+        fetch(cancelUrl, {
+            method:  'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body:    fd,
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.success) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+                $cancelBtn.style.display = 'none';
+                $cancelBtn.disabled = false;
+                setStatus('🛑 Test abgebrochen.', '#6b7280');
+                $btn.disabled = false;
+                $btn.textContent = '▶ Speichern & Live testen';
+                $badge.textContent = 'Run #' + currentRunId + ' · cancelled';
+                $badge.style.color = '#6b7280';
+                renderTimeline([], 0);
+            }
+        })
+        .catch(function () {
+            $cancelBtn.disabled = false;
+            $cancelBtn.textContent = '✕ Abbrechen';
+        });
+    });
+
+    $btn.addEventListener('click', function () {
+        $btn.disabled = true;
+        $btn.textContent = '⏳ Speichere...';
+        setStatus('Speichere Steps...', '#6b7280');
+        screenshotIdx  = null;
+        manualSelect   = false;
+        allStepLogs    = [];
+        networkEntries = [];
+        document.getElementById('network-log-body').innerHTML = '<tr><td colspan="3" style="padding:10px;color:#475569;font-style:italic;font-family:sans-serif">Warte auf Requests...</td></tr>';
+        document.getElementById('net-count').textContent = '0';
+        synmonTab('protocol'); // switch back to protocol tab on new test
+        $img.style.display = 'none';
+        $imgPlaceholder.style.display = 'block';
+        $timeline.innerHTML = '<div style="font-size:12px;color:#475569;font-style:italic">Starte Test...</div>';
+        $urlBar.textContent = '— wird gestartet —';
+        var labelEl2 = document.getElementById('live-step-label');
+        if (labelEl2) labelEl2.textContent = '';
+        $badge.textContent = '';
+
+        // Step 1: AJAX-save current steps (re-index names before collecting)
+        document.querySelectorAll('#step-list .synmon-step-row').forEach(function (row, i) {
+            row.querySelectorAll('[name]').forEach(function (el) {
+                var n = el.getAttribute('name');
+                el.setAttribute('name', n.replace(/steps\[\d+]/, 'steps[' + i + ']'));
+                if (n.indexOf('[sortOrder]') !== -1) el.value = i;
+            });
+        });
+        var formData = new FormData(document.getElementById('live-suite-form'));
+        formData.set('CRAFT_CSRF_TOKEN', csrfToken);
+        fetch(saveAjaxUrl, {
+            method:  'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body:    formData,
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data.success) {
+                setStatus('❌ Fehler beim Speichern: ' + (data.error || ''), '#dc2626');
+                $btn.disabled = false;
+                $btn.textContent = '▶ Speichern & Live testen';
+                return;
+            }
+            setStatus('✓ Gespeichert. Starte Live-Test...', '#16a34a');
+            $btn.textContent = '⏳ Test läuft...';
+
+            // Step 2: Start live run
+            var fd2 = new FormData();
+            fd2.append('suiteId', data.suiteId || suiteId);
+            fd2.append('CRAFT_CSRF_TOKEN', csrfToken);
+            return fetch(runLiveUrl, {
+                method:  'POST',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body:    fd2,
+            });
+        })
+        .then(function (r) { return r && r.json(); })
+        .then(function (data) {
+            if (!data || !data.success) {
+                setStatus('❌ Fehler beim Starten: ' + (data && data.error || ''), '#dc2626');
+                $btn.disabled = false;
+                $btn.textContent = '▶ Speichern & Live testen';
+                return;
+            }
+            currentRunId = data.runId;
+            $badge.textContent = 'Run #' + currentRunId;
+            $badge.style.color = '#f59e0b';
+            setStatus('⏳ Test läuft (Run #' + currentRunId + ')...', '#d97706');
+            $cancelBtn.style.display = 'inline-block';
+
+            // Step 3: Poll every 1s
+            pollInterval = setInterval(function () { poll(currentRunId); }, 1000);
+            poll(currentRunId); // immediate first poll
+        })
+        .catch(function (e) {
+            setStatus('❌ Fehler: ' + e.message, '#dc2626');
+            $btn.disabled = false;
+            $btn.textContent = '▶ Speichern & Live testen';
+        });
+    });
+})();
+</script>
+
+{% endblock %}

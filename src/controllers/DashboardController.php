@@ -21,13 +21,23 @@ class DashboardController extends Controller
 
     public function actionIndex(): \yii\web\Response
     {
-        $stats = SynMon::getInstance()->getResultService()->getDashboardStats();
-        $settings = SynMon::getInstance()->getResultService()->getSettings();
+        $stats     = SynMon::getInstance()->getResultService()->getDashboardStats();
+        $settings  = SynMon::getInstance()->getResultService()->getSettings();
+        $scheduler = SynMon::getInstance()->getSchedulerService();
+
+        $nextRuns = [];
+        foreach ($stats['suiteStatuses'] as $suite) {
+            if ($suite['enabled']) {
+                $next = $scheduler->getNextRunTime($suite['cronExpression']);
+                $nextRuns[$suite['id']] = $next ? $next->format('d.m.Y H:i') : null;
+            }
+        }
 
         return $this->renderTemplate('synmon/cp/dashboard/index', [
             'title'    => 'SynMon Dashboard',
             'stats'    => $stats,
             'settings' => $settings,
+            'nextRuns' => $nextRuns,
         ]);
     }
 }

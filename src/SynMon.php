@@ -116,21 +116,30 @@ class SynMon extends Plugin
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
             function(RegisterUrlRulesEvent $event) {
                 $event->rules = array_merge($event->rules, [
-                    'synmon'                      => 'synmon/dashboard/index',
-                    'synmon/suites'               => 'synmon/suites/index',
-                    'synmon/suites/new'           => 'synmon/suites/new',
-                    'synmon/suites/<id:\d+>'      => 'synmon/suites/edit',
-                    'synmon/suites/save'          => 'synmon/suites/save',
-                    'synmon/suites/delete'        => 'synmon/suites/delete',
-                    'synmon/suites/run'           => 'synmon/suites/run',
-                    'synmon/suites/add-step'      => 'synmon/suites/add-step',
-                    'synmon/suites/toggle'        => 'synmon/suites/toggle',
-                    'synmon/runs'                 => 'synmon/runs/index',
-                    'synmon/runs/<id:\d+>'        => 'synmon/runs/detail',
-                    'synmon/runs/delete'          => 'synmon/runs/delete',
-                    'synmon/runs/purge'           => 'synmon/runs/purge',
-                    'synmon/settings'             => 'synmon/settings/index',
-                    'synmon/settings/save'        => 'synmon/settings/save',
+                    'synmon'                          => 'synmon/dashboard/index',
+                    'synmon/suites'                   => 'synmon/suites/index',
+                    'synmon/suites/new'               => 'synmon/suites/new',
+                    'synmon/suites/<id:\d+>'          => 'synmon/suites/edit',
+                    'synmon/suites/<id:\d+>/live'     => 'synmon/suites/live',
+                    'synmon/suites/save'              => 'synmon/suites/save',
+                    'synmon/suites/save-ajax'         => 'synmon/suites/save-ajax',
+                    'synmon/suites/delete'            => 'synmon/suites/delete',
+                    'synmon/suites/run'               => 'synmon/suites/run',
+                    'synmon/suites/run-live'          => 'synmon/suites/run-live',
+                    'synmon/suites/add-step'          => 'synmon/suites/add-step',
+                    'synmon/suites/toggle'            => 'synmon/suites/toggle',
+                    'synmon/suites/<id:\d+>/clone'    => 'synmon/suites/clone',
+                    'synmon/suites/<id:\d+>/export'   => 'synmon/suites/export',
+                    'synmon/suites/import'            => 'synmon/suites/import',
+                    'synmon/runs'                     => 'synmon/runs/index',
+                    'synmon/runs/<id:\d+>'            => 'synmon/runs/detail',
+                    'synmon/runs/delete'              => 'synmon/runs/delete',
+                    'synmon/runs/purge'               => 'synmon/runs/purge',
+                    'synmon/runs/cancel'              => 'synmon/runs/cancel',
+                    'synmon/runs/<id:\d+>/live-status'=> 'synmon/runs/live-status',
+                    'synmon/runs/screenshot'          => 'synmon/runs/screenshot',
+                    'synmon/settings'                 => 'synmon/settings/index',
+                    'synmon/settings/save'            => 'synmon/settings/save',
                 ]);
             }
         );
@@ -143,6 +152,16 @@ class SynMon extends Plugin
         if (!$db->tableExists('{{%synmon_suites}}')) {
             $this->runMigration(new m000000_000000_synmon_install());
             Craft::info('SynMon: DB tables created.', __METHOD__);
+        }
+
+        // Add screenshotPath column if missing (added in v1.1.0)
+        if ($db->tableExists('{{%synmon_step_logs}}')) {
+            try {
+                $db->createCommand()->addColumn('{{%synmon_step_logs}}', 'screenshotPath', 'TEXT NULL')->execute();
+                Craft::info('SynMon: Added screenshotPath column.', __METHOD__);
+            } catch (\Throwable $e) {
+                // Column already exists – expected on subsequent loads
+            }
         }
     }
 

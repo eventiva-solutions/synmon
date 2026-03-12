@@ -1,5 +1,6 @@
 {% extends '_layouts/cp' %}
 {% do view.registerAssetBundle('eventiva\\synmon\\assetbundles\\SynMonAssetBundle') %}
+{% js %}window.synmonStepTypes = {{ stepTypes|json_encode|raw }};{% endjs %}
 {# Load Sortable.js from CDN #}
 {% js 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js' %}
 
@@ -139,6 +140,7 @@
         <a href="{{ cpUrl('synmon/suites') }}" class="btn">Abbrechen</a>
         {% if suite %}
             <button type="button" class="btn btn-run-suite" data-suite-id="{{ suite.id }}" style="margin-left:auto">▶ Jetzt testen</button>
+            <a href="{{ cpUrl('synmon/suites/' ~ suite.id ~ '/live') }}" class="btn" style="background:#1e293b;color:#fff;border-color:#1e293b">🎬 Live testen</a>
         {% endif %}
     </div>
 </form>

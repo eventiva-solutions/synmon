@@ -41,6 +41,7 @@
             <th>Cron</th>
             <th>Status</th>
             <th>Letzter Run</th>
+            <th>Nächster Run</th>
             <th>Aktionen</th>
         </tr>
     </thead>
@@ -60,7 +61,15 @@
             </td>
             <td>{{ suite.lastRunAt ? suite.lastRunAt|date('d.m.Y H:i') : '—' }}</td>
             <td>
+                {% if suite.enabled and nextRuns[suite.id] is defined %}
+                    <span style="font-size:12px;color:#374151">{{ nextRuns[suite.id] }}</span>
+                {% else %}
+                    <span style="color:#aaa;font-size:12px">{{ suite.enabled ? '—' : 'deaktiviert' }}</span>
+                {% endif %}
+            </td>
+            <td>
                 <button class="btn small btn-run-suite" data-suite-id="{{ suite.id }}">▶ Starten</button>
+                <a href="{{ cpUrl('synmon/suites/' ~ suite.id ~ '/live') }}" class="btn small">🎬 Live</a>
                 <a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}" class="btn small">Bearbeiten</a>
             </td>
         </tr>

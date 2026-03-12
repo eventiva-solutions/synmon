@@ -11,6 +11,16 @@
 
 {% block content %}
 
+{# Import Form (hidden, triggered by JS) #}
+<form id="synmon-import-form" method="post" action="{{ cpUrl('synmon/suites/import') }}" enctype="multipart/form-data" style="display:none">
+    {{ csrfInput() }}
+    <input type="file" id="synmon-import-file" name="importFile" accept=".json">
+</form>
+
+<div style="margin-bottom:16px;text-align:right">
+    <button type="button" class="btn" id="btn-import-suite" title="Suite aus JSON importieren">⬆ Import JSON</button>
+</div>
+
 {% if suites|length == 0 %}
 <div style="text-align:center;padding:60px 0;color:#999">
     <p style="font-size:32px">🔬</p>
@@ -26,13 +36,15 @@
             <th>Status</th>
             <th>Aktiv</th>
             <th>Letzter Run</th>
+            <th>Nächster Run</th>
             <th></th>
         </tr>
     </thead>
     <tbody>
         {% for suite in suites %}
         <tr>
-            <td><a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}">{{ suite.name }}</a>
+            <td>
+                <a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}">{{ suite.name }}</a>
                 {% if suite.description %}<br><small style="color:#999">{{ suite.description }}</small>{% endif %}
             </td>
             <td><span class="cron-badge">{{ suite.cronExpression }}</span></td>
@@ -48,13 +60,26 @@
                     {{ suite.enabled ? 'checked' : '' }}>
             </td>
             <td>{{ suite.lastRunAt ? suite.lastRunAt|date('d.m.Y H:i') : '—' }}</td>
-            <td style="text-align:right">
-                <button class="btn small btn-run-suite" data-suite-id="{{ suite.id }}">▶ Starten</button>
-                <a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}" class="btn small">Edit</a>
+            <td>
+                {% if suite.enabled and nextRuns[suite.id] is defined %}
+                    <span style="font-size:12px;color:#374151">{{ nextRuns[suite.id] }}</span>
+                {% else %}
+                    <span style="color:#aaa;font-size:12px">{{ suite.enabled ? '—' : 'deaktiviert' }}</span>
+                {% endif %}
+            </td>
+            <td style="text-align:right;white-space:nowrap">
+                <button class="btn small btn-run-suite" data-suite-id="{{ suite.id }}" title="Im Hintergrund starten">▶ Starten</button>
+                <a href="{{ cpUrl('synmon/suites/' ~ suite.id ~ '/live') }}" class="btn small" title="Live Test starten">🎬 Live</a>
+                <a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}" class="btn small">Bearbeiten</a>
+                <a href="{{ cpUrl('synmon/suites/' ~ suite.id ~ '/export') }}" class="btn small" title="Als JSON exportieren">⬇ Export</a>
+                <form method="post" style="display:inline" onsubmit="return confirm('Suite klonen?')">
+                    {{ csrfInput() }}
+                    <button type="submit" formaction="{{ cpUrl('synmon/suites/' ~ suite.id ~ '/clone') }}" class="btn small" title="Suite duplizieren">⎘ Klonen</button>
+                </form>
                 <form method="post" style="display:inline" onsubmit="return confirm('Suite löschen?')">
                     {{ csrfInput() }}
                     <input type="hidden" name="suiteId" value="{{ suite.id }}">
-                    <button type="submit" formaction="{{ cpUrl('synmon/suites/delete') }}" class="btn small">Löschen</button>
+                    <button type="submit" formaction="{{ cpUrl('synmon/suites/delete') }}" class="btn small">✕</button>
                 </form>
             </td>
         </tr>
@@ -62,5 +87,16 @@
     </tbody>
 </table>
 {% endif %}
+
+{% js %}
+document.getElementById('btn-import-suite').addEventListener('click', function () {
+    document.getElementById('synmon-import-file').click();
+});
+document.getElementById('synmon-import-file').addEventListener('change', function () {
+    if (this.files.length > 0) {
+        document.getElementById('synmon-import-form').submit();
+    }
+});
+{% endjs %}
 
 {% endblock %}

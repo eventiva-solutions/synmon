@@ -7,7 +7,7 @@
         $('#step-list .synmon-step-row').each(function (i) {
             $(this).find('[name]').each(function () {
                 var name    = $(this).attr('name');
-                var newName = name.replace(/steps\[\d+\]/, 'steps[' + i + ']');
+                var newName = name.replace(/steps\[\d+]/, 'steps[' + i + ']');
                 $(this).attr('name', newName);
                 // Keep sortOrder value in sync with actual position
                 if (name.indexOf('[sortOrder]') !== -1) {
@@ -44,9 +44,11 @@
         });
     });
 
-    // Remove step
+    // Remove step (also removes the sibling hint div)
     $(document).on('click', '.btn-remove-step', function () {
-        $(this).closest('.synmon-step-row').remove();
+        var $row = $(this).closest('.synmon-step-row');
+        $row.next('.synmon-step-hint').remove();
+        $row.remove();
         reindexSteps();
     });
 
@@ -163,9 +165,10 @@
 
     function updateCronPreview(expr) {
         if (!expr) return;
+        var $preview = $('#cron-preview-text');
         var parts = expr.trim().split(/\s+/);
         if (parts.length !== 5) {
-            $('#cron-preview-text').text('');
+            $preview.text('');
             return;
         }
         var min     = parts[0];
@@ -178,13 +181,13 @@
         }).join(', ');
 
         var dayNames = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-        var dayStr   = '';
+        var dayStr;
 
         if (weekday !== '*' && day !== '*') {
-            var wdLabels = weekday.split(',').map(function (d) { return dayNames[parseInt(d)] || d; });
+            let wdLabels = weekday.split(',').map(function (d) { return dayNames[parseInt(d)] || d; });
             dayStr = ' | Wochentage: ' + wdLabels.join(', ') + ', Monatstage: ' + day;
         } else if (weekday !== '*') {
-            var wdLabels = weekday.split(',').map(function (d) { return dayNames[parseInt(d)] || d; });
+            let wdLabels = weekday.split(',').map(function (d) { return dayNames[parseInt(d)] || d; });
             dayStr = ' | ' + wdLabels.join(', ');
         } else if (day !== '*') {
             dayStr = ' | Tag ' + day + '. im Monat';
@@ -192,7 +195,7 @@
             dayStr = ' | täglich';
         }
 
-        $('#cron-preview-text').text('→ ' + timeStr + dayStr);
+        $preview.text('→ ' + timeStr + dayStr);
     }
 
     // Init cron builder from existing expression
@@ -240,10 +243,9 @@
     }
 
     function addTimeEntry(value) {
-        var $row = $('<div class="cron-time-entry" style="display:flex;gap:6px;align-items:center">' +
-            '<input type="time" class="cron-time text" style="width:120px" value="' + (value || '08:00') + '">' +
-            '<button type="button" class="btn-remove-time btn small" style="padding:2px 8px">✕</button>' +
-            '</div>');
+        var $input = $('<input>').attr({ type: 'time', class: 'cron-time text', style: 'width:120px' }).val(value || '08:00');
+        var $btn   = $('<button>').attr({ type: 'button', class: 'btn-remove-time btn small', style: 'padding:2px 8px' }).text('\u2715');
+        var $row   = $('<div>').addClass('cron-time-entry').css({ display: 'flex', gap: '6px', alignItems: 'center' }).append($input, $btn);
         $('#cron-times-list').append($row);
     }
 
@@ -287,9 +289,44 @@
         if (cronManualMode) updateCronPreview($(this).val());
     });
 
+    // ── Step type change: toggle selector/value fields + update hint ─────────
+    function applyStepTypeVisibility($row, type) {
+        var types  = window.synmonStepTypes || {};
+        var cfg    = types[type] || {};
+        var hasSel = cfg.hasSelector !== undefined ? cfg.hasSelector : true;
+        var hasVal = cfg.hasValue    !== undefined ? cfg.hasValue    : true;
+
+        $row.find('.step-selector-input').toggle(hasSel)
+            .attr('placeholder', cfg.selectorPlaceholder || 'CSS-Selector');
+        $row.find('.step-value-input').toggle(hasVal)
+            .attr('placeholder', cfg.valuePlaceholder || 'Wert / URL');
+
+        // Update hint text in the sibling hint div
+        var $hint = $row.next('.synmon-step-hint');
+        if ($hint.length) {
+            $hint.html(cfg.hint || '');
+        }
+    }
+
+    $(document).on('change', '.step-type-select', function () {
+        applyStepTypeVisibility($(this).closest('.synmon-step-row'), $(this).val());
+    });
+
+    // ── Step help toggle ──────────────────────────────────────────────────────
+    $(document).on('click', '.btn-step-help', function () {
+        var $hint = $(this).closest('.synmon-step-row').next('.synmon-step-hint');
+        $hint.slideToggle(150);
+        $(this).toggleClass('active');
+    });
+
     // ── Init ──────────────────────────────────────────────────────────────────
     $(document).ready(function () {
         initSortable();
+        // Apply visibility for all existing step rows on load
+        $('#step-list .synmon-step-row').each(function () {
+            var type = $(this).find('.step-type-select').val();
+            if (type) applyStepTypeVisibility($(this), type);
+        });
 
         // Parse existing cron expression into UI
         var existingCron = $('#cron-expression').val();

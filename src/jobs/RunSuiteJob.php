@@ -9,7 +9,9 @@ use eventiva\synmon\SynMon;
 class RunSuiteJob extends BaseJob
 {
     public int    $suiteId;
-    public string $trigger = 'cron';
+    public string $trigger  = 'cron';
+    public bool   $liveMode = false;
+    public ?int   $runId    = null;
 
     public function execute($queue): void
     {
@@ -21,7 +23,12 @@ class RunSuiteJob extends BaseJob
         }
 
         try {
-            $result = SynMon::getInstance()->getRunnerService()->runSuite($this->suiteId, $this->trigger);
+            $result = SynMon::getInstance()->getRunnerService()->runSuite(
+                $this->suiteId,
+                $this->trigger,
+                $this->liveMode,
+                $this->runId
+            );
             Craft::info(
                 "RunSuiteJob: Suite #{$this->suiteId} ({$suite['name']}) – status: " . ($result['status'] ?? 'unknown'),
                 __METHOD__
@@ -34,6 +41,6 @@ class RunSuiteJob extends BaseJob
 
     protected function defaultDescription(): ?string
     {
-        return 'SynMon: Run Suite #' . $this->suiteId;
+        return 'SynMon: Run Suite #' . $this->suiteId . ($this->liveMode ? ' (Live)' : '');
     }
 }
