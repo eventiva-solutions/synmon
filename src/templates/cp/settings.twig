@@ -69,9 +69,22 @@ npx playwright install chromium</code>
 
     <hr>
     <h2>Cron-Setup</h2>
-    <p>Füge folgenden Eintrag in deinen Server-Crontab ein (<code>crontab -e</code>):</p>
+    <p>Beide Einträge müssen im Server-Crontab hinterlegt sein (<code>crontab -e</code>):</p>
+
+    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px">
+        ⚠️ <strong>Pfad anpassen!</strong> Ersetze <code>/var/www/craft</code> durch den tatsächlichen Pfad zur <code>craft</code>-Datei auf deinem Server.<br>
+        Pfad ermitteln: <code>find /var/www -name "craft" -type f</code>
+    </div>
+
     <div class="synmon-playwright-setup" style="background:#f3f4f6;border-color:#d1d5db">
-        <code>* * * * * /usr/bin/php {{ craft.app.request.isConsoleRequest ? '' : '' }}/var/www/craft synmon/run >> /var/log/synmon.log 2>&1</code>
+        <div style="margin-bottom:6px">
+            <span style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px"># 1. SynMon: fällige Suites in die Queue einreihen</span>
+            <code>* * * * * /usr/bin/php /var/www/craft synmon/run >> /var/log/synmon.log 2>&1</code>
+        </div>
+        <div>
+            <span style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px"># 2. Craft Queue: Jobs verarbeiten (ohne diesen Eintrag laufen keine Tests!)</span>
+            <code>* * * * * /usr/bin/php /var/www/craft queue/run >> /dev/null 2>&1</code>
+        </div>
     </div>
 
     <button type="submit" formaction="{{ cpUrl('synmon/settings/save') }}" class="btn submit">Einstellungen speichern</button>

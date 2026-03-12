@@ -39,6 +39,11 @@ class SynMon extends Plugin
     {
         parent::init();
 
+        // Register console controller namespace so `php craft synmon/run` works
+        if (Craft::$app->getRequest()->getIsConsoleRequest()) {
+            $this->controllerNamespace = 'eventiva\\synmon\\console\\controllers';
+        }
+
         $this->runMigrationsIfNeeded();
 
         $this->setComponents([

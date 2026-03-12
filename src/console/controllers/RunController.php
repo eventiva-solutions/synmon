@@ -24,10 +24,19 @@ class RunController extends Controller
             return ExitCode::OK;
         }
 
-        $dueSuites = SynMon::getInstance()->getSchedulerService()->getDueSuites();
+        $dueSuites  = SynMon::getInstance()->getSchedulerService()->getDueSuites();
+        $allSuites  = SynMon::getInstance()->getSuiteService()->getSuites();
 
         if (empty($dueSuites)) {
             echo "No suites due.\n";
+            if (!empty($allSuites)) {
+                echo "Available suites:\n";
+                foreach ($allSuites as $s) {
+                    $status = $s['enabled'] ? 'enabled' : 'disabled';
+                    echo "  #{$s['id']}  {$s['name']}  [{$status}]  cron: {$s['cronExpression']}\n";
+                }
+                echo "Run a specific suite now: php craft synmon/run/suite <id>\n";
+            }
             return ExitCode::OK;
         }
 

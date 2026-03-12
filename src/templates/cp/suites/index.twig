@@ -45,6 +45,7 @@
         <tr>
             <td>
                 <a href="{{ cpUrl('synmon/suites/' ~ suite.id) }}">{{ suite.name }}</a>
+                <span style="font-size:10px;color:#aaa;margin-left:6px">#{{ suite.id }}</span>
                 {% if suite.description %}<br><small style="color:#999">{{ suite.description }}</small>{% endif %}
             </td>
             <td><span class="cron-badge">{{ suite.cronExpression }}</span></td>
